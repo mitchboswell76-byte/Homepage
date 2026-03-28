@@ -4,8 +4,8 @@ Atlas of Ideas is a cinematic single-scene homepage built as an interactive cons
 
 ## Version
 
-- **Current version:** 1.0.0
-- **Last update:** March 28, 2026 — initial release of the Vite + React + Framer Motion constellation scene, including hand-placed nodes, SVG links, hover/focus states, and reduced-motion support.
+- **Current version:** 1.0.1
+- **Last update:** March 28, 2026 — fixed a blank-screen runtime risk by removing critical Framer Motion dependencies from scene rendering, ensuring the left text block, constellation nodes/labels/SVG links, and click-to-open detail panel always render statically first, with safe optional motion handled via CSS.
 
 ## Install
 
