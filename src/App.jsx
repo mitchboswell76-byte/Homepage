@@ -1,5 +1,4 @@
-import { useMemo, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
 
 const nodes = [
   { id: 'atlas-engine', label: 'Atlas Engine', x: 71, y: 26, size: 'anchor', note: 'Core system where half-formed ideas are translated into navigable constellations.' },
@@ -64,10 +63,14 @@ const sizeScale = {
 const anchorIds = new Set(nodes.filter((n) => n.size === 'anchor').map((n) => n.id));
 
 export default function App() {
-  const prefersReducedMotion = useReducedMotion();
   const [hoveredId, setHoveredId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
+  const [reduceMotion, setReduceMotion] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false
+  );
 
   const nodeMap = useMemo(() => Object.fromEntries(nodes.map((node) => [node.id, node])), []);
 
@@ -84,18 +87,35 @@ export default function App() {
   const activeNode = activeId ? nodeMap[activeId] : null;
 
   const handlePointerMove = (event) => {
-    if (prefersReducedMotion) return;
+    if (reduceMotion) return;
     const { clientWidth, clientHeight } = event.currentTarget;
     const x = (event.clientX / clientWidth - 0.5) * 2;
     const y = (event.clientY / clientHeight - 0.5) * 2;
     setPointer({ x, y });
   };
 
+  const handlePointerLeave = () => {
+    setPointer({ x: 0, y: 0 });
+    setHoveredId(null);
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updateReducedMotion = () => setReduceMotion(media.matches);
+
+    updateReducedMotion();
+    media.addEventListener('change', updateReducedMotion);
+
+    return () => media.removeEventListener('change', updateReducedMotion);
+  }, []);
+
   return (
     <main
       className="atlas-scene"
       onPointerMove={handlePointerMove}
-      onPointerLeave={() => setPointer({ x: 0, y: 0 })}
+      onPointerLeave={handlePointerLeave}
       onClick={() => setActiveId(null)}
     >
       <div className="atmosphere" aria-hidden="true" />
@@ -112,23 +132,17 @@ export default function App() {
         </p>
       </section>
 
-      <motion.section
+      <section
         className="constellation-zone"
-        animate={
-          prefersReducedMotion
-            ? false
+        style={
+          reduceMotion
+            ? undefined
             : {
-                x: pointer.x * 8,
-                y: pointer.y * 8
+                transform: `translate(${pointer.x * 8}px, ${pointer.y * 8}px)`
               }
         }
-        transition={{ type: 'spring', stiffness: 30, damping: 20, mass: 1.5 }}
       >
-        <motion.div
-          className="constellation-field"
-          animate={prefersReducedMotion ? false : { x: [0, 4, -3, 0], y: [0, -3, 2, 0] }}
-          transition={{ duration: 34, repeat: Infinity, ease: 'easeInOut' }}
-        >
+        <div className={`constellation-field ${reduceMotion ? 'is-static' : ''}`}>
           <svg className="links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             {links.map(([a, b]) => {
               const start = nodeMap[a];
@@ -153,7 +167,7 @@ export default function App() {
             const isDimmed = hoveredId && !isConnected;
             const isAnchor = node.size === 'anchor';
             return (
-              <motion.button
+              <button
                 key={node.id}
                 type="button"
                 className={`node ${node.size} ${isDimmed ? 'is-dimmed' : ''} ${isConnected ? 'is-connected' : ''}`}
@@ -168,45 +182,31 @@ export default function App() {
                     setActiveId((current) => (current === node.id ? null : node.id));
                   }
                 }}
-                whileHover={prefersReducedMotion ? undefined : { scale: 1.08 }}
-                whileFocus={prefersReducedMotion ? undefined : { scale: 1.05 }}
                 aria-label={node.label ?? 'Constellation point'}
                 aria-haspopup={isAnchor ? 'dialog' : undefined}
                 aria-expanded={isAnchor ? activeId === node.id : undefined}
               >
                 <span className="dot" style={{ width: sizeScale[node.size], height: sizeScale[node.size] }} />
-                {isAnchor && (
-                  <motion.span
-                    className="halo"
-                    animate={prefersReducedMotion ? false : { opacity: [0.2, 0.45, 0.2], scale: [0.95, 1.08, 0.95] }}
-                    transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-                  />
-                )}
+                {isAnchor && <span className="halo" />}
                 {node.label ? <span className="label">{node.label}</span> : null}
-              </motion.button>
+              </button>
             );
           })}
-        </motion.div>
-      </motion.section>
+        </div>
+      </section>
 
-      <AnimatePresence>
-        {activeNode && (
-          <motion.aside
-            className="detail-panel"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.35, ease: [0.2, 0.65, 0.3, 1] }}
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-            aria-label={`${activeNode.label} details`}
-          >
-            <p className="panel-kicker">Selected Node</p>
-            <h2>{activeNode.label}</h2>
-            <p>{activeNode.note}</p>
-          </motion.aside>
-        )}
-      </AnimatePresence>
+      {activeNode && (
+        <aside
+          className="detail-panel"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+          aria-label={`${activeNode.label} details`}
+        >
+          <p className="panel-kicker">Selected Node</p>
+          <h2>{activeNode.label}</h2>
+          <p>{activeNode.note}</p>
+        </aside>
+      )}
 
       <div className="foot-fade" aria-hidden="true" />
     </main>
